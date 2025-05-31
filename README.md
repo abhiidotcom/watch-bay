@@ -134,10 +134,7 @@ This project is licensed under the MIT License.
 ## 📬 Contact
 
 For questions, suggestions, or collaboration:
-
-**Email**: \[[your-email@example.com](mailto:your-email@example.com)]
-**GitHub**: [@yourusername](https://github.com/yourusername)
-
----
+abhijeetg@gmail.com
+github- abhiidotcom
 
 Let me know if you want to include live demo links, screenshots, or environment details!

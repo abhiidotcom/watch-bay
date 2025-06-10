@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&display=swap" rel="stylesheet">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WatchBay</title>
+ 
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="navbar">
+    <h1 class="logo">WatchBay</h1>
+
+    <div class="search-bar">
+      <input type="text" placeholder="Search..." id="searchInput" />
+      <button class="search-icon" id="searchBtn">
+        <i class="fa fa-search"></i>
+      </button>
+    </div>
+
+    <nav>
+      <ul class="nav-buttons">
+        <button class="navbut active" onclick="loadAllSections()">Home</button>
+        <button class="navbut" onclick="filterByGenre('TV Shows')">TV Shows</button>
+        <button class="navbut" onclick="filterByGenre('Movies')">Movies</button>
+        <button class="navbut" onclick="loadWatchHistory()">My List</button>
+      </ul>
+    </nav>
+  </header>
+
+  <section class="hero" id="featuredSection">
+    <!-- Featured content will be loaded here -->
+  </section>
+
+  <section class="row">
+    <h3>Latest Uploads</h3>
+    <div class="row-posters" id="latestUploads">
+      <!-- Dynamic content will be loaded here -->
+    </div>
+  </section>
+
+  <section class="row auto-scroll">
+    <h3>Trending Now</h3>
+    <div class="row-posters" id="trendingSection">
+      <!-- Trending content will be loaded here -->
+    </div>
+  </section>
+
+  <section class="row auto-scroll">
+    <h3>Watch Again</h3>
+    <div class="row-posters" id="watchHistory">
+      <!-- Watch history will be loaded here -->
+    </div>
+  </section>
+
+  <script>
+    const API_BASE_URL = 'http://localhost:5000/api/movies';
+
+    // Load featured movie
+    async function loadFeaturedMovie() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/featured`);
+        const movie = await response.json();
+        
+        if (movie && movie._id) {
+          const featuredSection = document.getElementById('featuredSection');
+          featuredSection.style.backgroundImage = `url(http://localhost:5000${movie.thumbnailPath})`;
+          featuredSection.innerHTML = `
+            <div class="hero-content">
+              <h2>${movie.title}</h2>
+              <p>${movie.description}</p>
+              <button onclick="playMovie('${movie._id}')">Play</button>
+              <button class="secondary" onclick="showMovieDetails('${movie._id}')">More Info</button>
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error('Error loading featured movie:', error);
+      }
+    }
+
+    // Load latest uploads
+    async function loadLatestUploads() {
+      const container = document.getElementById('latestUploads');
+      container.innerHTML = '<div class="loading">Loading...</div>';
+      
+      try {
+        const response = await fetch(API_BASE_URL);
+        const movies = await response.json();
+        
+        if (!movies || movies.length === 0) {
+          container.innerHTML = '<div class="no-movies">No movies available</div>';
+          return;
+        }
+
+        container.innerHTML = '';
+        movies.forEach(movie => renderMovieCard(movie, container));
+      } catch (error) {
+        console.error('Error loading movies:', error);
+        container.innerHTML = `<div class="error">Error loading movies: ${error.message}</div>`;
+      }
+    }
+
+    // Load trending movies
+    async function loadTrendingMovies() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/trending`);
+        const movies = await response.json();
+        const container = document.getElementById('trendingSection');
+        container.innerHTML = '';
+        if (movies && movies.length > 0) {
+          movies.forEach(movie => renderMovieCard(movie, container));
+        } else {
+          container.innerHTML = '<div class="no-movies">No trending movies</div>';
+        }
+      } catch (error) {
+        console.error('Error loading trending movies:', error);
+        document.getElementById('trendingSection').innerHTML = 
+          `<div class="error">Error loading trending movies: ${error.message}</div>`;
+      }
+    }
+
+    // Load watch history
+    async function loadWatchHistory() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/watch-history`);
+        const movies = await response.json();
+        const container = document.getElementById('watchHistory');
+        container.innerHTML = '';
+        
+        if (movies && movies.length > 0) {
+          movies.forEach(movie => renderMovieCard(movie, container));
+        } else {
+          container.innerHTML = '<div class="no-movies">No watch history available</div>';
+        }
+
+        // Update active button
+        updateActiveButton('My List');
+      } catch (error) {
+        console.error('Error loading watch history:', error);
+        document.getElementById('watchHistory').innerHTML = 
+          `<div class="error">Error loading watch history: ${error.message}</div>`;
+      }
+    }
+
+    // Search functionality
+    async function performSearch() {
+      const query = searchInput.value.trim();
+      if (!query) return;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}?search=${encodeURIComponent(query)}`);
+        const movies = await response.json();
+        const container = document.getElementById('latestUploads');
+        container.innerHTML = '';
+        
+        if (movies.length === 0) {
+          container.innerHTML = '<div class="no-movies">No movies found</div>';
+          return;
+        }
+
+        movies.forEach(movie => renderMovieCard(movie, container));
+      } catch (error) {
+        console.error('Error searching movies:', error);
+        document.getElementById('latestUploads').innerHTML = 
+          `<div class="error">Error searching movies: ${error.message}</div>`;
+      }
+    }
+
+    const searchInput = document.querySelector('#searchInput');
+    const searchBtn = document.querySelector('#searchBtn');
+
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        performSearch();
+      }
+    });
+
+    searchBtn.addEventListener('click', performSearch);
+
+    // Filter by genre
+    async function filterByGenre(genre) {
+      try {
+        const response = await fetch(`${API_BASE_URL}?genre=${encodeURIComponent(genre)}`);
+        const movies = await response.json();
+        const container = document.getElementById('latestUploads');
+        container.innerHTML = '';
+        
+        if (movies.length === 0) {
+          container.innerHTML = `<div class="no-movies">No ${genre.toLowerCase()} found</div>`;
+          return;
+        }
+
+        movies.forEach(movie => renderMovieCard(movie, container));
+        
+        // Update active button
+        updateActiveButton(genre);
+      } catch (error) {
+        console.error('Error filtering movies:', error);
+        document.getElementById('latestUploads').innerHTML = 
+          `<div class="error">Error filtering movies: ${error.message}</div>`;
+      }
+    }
+
+    // Update active navigation button
+    function updateActiveButton(buttonText) {
+      document.querySelectorAll('.navbut').forEach(button => {
+        button.classList.remove('active');
+        if (button.textContent === buttonText) {
+          button.classList.add('active');
+        }
+      });
+    }
+
+    // Utility function to render movie card
+    function renderMovieCard(movie, container) {
+      const movieElement = document.createElement('div');
+      movieElement.className = 'movie-item';
+      movieElement.innerHTML = `
+        <img src="http://localhost:5000${movie.thumbnailPath}" 
+             alt="${movie.title}" 
+             class="poster" 
+             onclick="playMovie('${movie._id}')"/>
+        <div class="movie-info">
+          <h4>${movie.title}</h4>
+          <span class="genre">${movie.genre || 'Other'}</span>
+        </div>
+      `;
+      container.appendChild(movieElement);
+    }
+
+    // Play movie and record view
+    async function playMovie(movieId) {
+      try {
+        // Record the view
+        await fetch(`${API_BASE_URL}/${movieId}/view`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        // Navigate to movie page
+        window.location.href = `movie.html?id=${movieId}&autoplay=true`;
+      } catch (error) {
+        console.error('Error recording view:', error);
+      }
+    }
+
+    // Show movie details
+    function showMovieDetails(movieId) {
+      window.location.href = `movie.html?id=${movieId}`;
+    }
+
+    // Auto-scroll functionality
+    const scrollSpeed = 0.5;
+    let scrollIntervals = [];
+
+    document.querySelectorAll('.auto-scroll .row-posters').forEach((row, index) => {
+      row.addEventListener('mouseenter', () => {
+        scrollIntervals[index] = setInterval(() => {
+          row.scrollLeft += scrollSpeed;
+          if (row.scrollLeft + row.clientWidth >= row.scrollWidth) {
+            row.scrollLeft = 0;
+          }
+        }, 20);
+      });
+
+      row.addEventListener('mouseleave', () => {
+        clearInterval(scrollIntervals[index]);
+      });
+    });
+
+    // Load all sections
+    function loadAllSections() {
+      loadFeaturedMovie();
+      loadLatestUploads();
+      loadTrendingMovies();
+      loadWatchHistory();
+      updateActiveButton('Home');
+    }
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', loadAllSections);
+  </script>
+</body>
+</html>

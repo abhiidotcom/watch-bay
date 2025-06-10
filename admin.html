@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WatchBay Admin Panel</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Audiowide&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>WatchBay Admin Panel</h1>
+            <a href="index.html" class="view-site-btn">View Site</a>
+        </header>
+
+        <main class="admin-main">
+            <section class="upload-section">
+                <h2>Upload New Movie</h2>
+                <form id="uploadForm">
+                    <div class="form-group">
+                        <label for="title">Movie Title:</label>
+                        <input type="text" id="title" name="title" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description:</label>
+                        <textarea id="description" name="description" required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="genre">Genre:</label>
+                        <select id="genre" name="genre" required>
+                            <option value="Action">Action</option>
+                            <option value="Comedy">Comedy</option>
+                            <option value="Drama">Drama</option>
+                            <option value="Horror">Horror</option>
+                            <option value="Sci-Fi">Sci-Fi</option>
+                            <option value="Documentary">Documentary</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="video">Video File:</label>
+                        <input type="file" id="video" name="video" accept="video/*" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="thumbnail">Thumbnail Image:</label>
+                        <input type="file" id="thumbnail" name="thumbnail" accept="image/*" required>
+                    </div>
+
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="isFeatured" name="isFeatured">
+                            Set as Featured Movie
+                        </label>
+                    </div>
+
+                    <button type="submit" class="upload-btn">Upload Movie</button>
+                </form>
+                <div id="uploadStatus"></div>
+            </section>
+
+            <section class="movies-list">
+                <h2>Uploaded Movies</h2>
+                <div id="moviesList" class="movies-grid"></div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5000/api';
+
+        // Test API connection on page load
+        async function testApiConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/movies/test`);
+                const data = await response.json();
+                console.log('API connection test:', data);
+                return true;
+            } catch (error) {
+                console.error('API connection test failed:', error);
+                return false;
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('title', document.getElementById('title').value);
+            formData.append('description', document.getElementById('description').value);
+            formData.append('genre', document.getElementById('genre').value);
+            formData.append('video', document.getElementById('video').files[0]);
+            formData.append('thumbnail', document.getElementById('thumbnail').files[0]);
+            formData.append('isFeatured', document.getElementById('isFeatured').checked);
+
+            const statusDiv = document.getElementById('uploadStatus');
+            statusDiv.textContent = 'Uploading...';
+            statusDiv.className = 'status-uploading';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/movies/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await handleApiResponse(response);
+                statusDiv.textContent = 'Upload successful!';
+                statusDiv.className = 'status-success';
+                document.getElementById('uploadForm').reset();
+                loadMovies(); // Refresh the movies list
+            } catch (error) {
+                console.error('Upload error:', error);
+                statusDiv.textContent = `Upload failed: ${error.message}`;
+                statusDiv.className = 'status-error';
+            }
+        });
+
+        // Load and display uploaded movies
+        async function loadMovies() {
+            const container = document.getElementById('moviesList');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/movies`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch movies');
+                }
+                const movies = await response.json();
+                
+                container.innerHTML = ''; // Clear existing content
+                
+                movies.forEach(movie => {
+                    const movieElement = document.createElement('div');
+                    movieElement.className = 'movie-card';
+                    movieElement.innerHTML = `
+                        <img src="http://localhost:5000${movie.thumbnailPath}" alt="${movie.title}">
+                        <div class="movie-info">
+                            <h3>${movie.title}</h3>
+                            <p>${movie.description}</p>
+                            <div class="movie-status">
+                                <label class="status-toggle">
+                                    <input type="checkbox" 
+                                           ${movie.isFeatured ? 'checked' : ''} 
+                                           onchange="updateMovieStatus('${movie._id}', 'isFeatured', this.checked)">
+                                    <span class="status-label">Featured</span>
+                                </label>
+                                <label class="status-toggle">
+                                    <input type="checkbox" 
+                                           ${movie.isTrending ? 'checked' : ''} 
+                                           onchange="updateMovieStatus('${movie._id}', 'isTrending', this.checked)">
+                                    <span class="status-label">Trending</span>
+                                </label>
+                            </div>
+                            <div class="movie-meta">
+                                <span class="genre">${movie.genre || 'Other'}</span>
+                                <span class="views">${movie.views || 0} views</span>
+                            </div>
+                            <div class="movie-actions">
+                                <button onclick="deleteMovie('${movie._id}')" class="delete-btn">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                                <a href="movie.html?id=${movie._id}" class="view-btn" target="_blank">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(movieElement);
+                });
+            } catch (error) {
+                console.error('Error loading movies:', error);
+                container.innerHTML = `<div class="error-message">Error loading movies: ${error.message}</div>`;
+            }
+        }
+
+        // Update movie status (Featured/Trending)
+        async function updateMovieStatus(movieId, field, value) {
+            const statusDiv = document.getElementById('uploadStatus');
+            const checkbox = event.target;
+            const originalValue = !value;
+
+            try {
+                // First, test API connection
+                const isApiConnected = await testApiConnection();
+                if (!isApiConnected) {
+                    throw new Error('Cannot connect to API');
+                }
+
+                statusDiv.textContent = `Updating ${field} status...`;
+                statusDiv.className = 'status-uploading';
+
+                const url = `${API_BASE_URL}/movies/${movieId}`;
+                console.log('Making request to:', url);
+                console.log('Request body:', { [field]: value });
+
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        [field]: value
+                    })
+                });
+
+                // Log response details for debugging
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                // Get response text first
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+
+                // Try to parse as JSON
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    console.error('Failed to parse response as JSON:', e);
+                    throw new Error(`Invalid response from server: ${responseText}`);
+                }
+
+                if (!response.ok) {
+                    throw new Error(data.details || data.error || 'Failed to update status');
+                }
+
+                statusDiv.textContent = `Successfully updated ${field} status`;
+                statusDiv.className = 'status-success';
+
+                // If this was setting a featured movie, refresh the list to show updated statuses
+                if (field === 'isFeatured' && value === true) {
+                    await loadMovies();
+                }
+            } catch (error) {
+                console.error('Error updating movie status:', error);
+                statusDiv.textContent = `Failed to update status: ${error.message}`;
+                statusDiv.className = 'status-error';
+                checkbox.checked = originalValue;
+            }
+
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = '';
+            }, 3000);
+        }
+
+        // Delete movie function
+        async function deleteMovie(movieId) {
+            if (!confirm('Are you sure you want to delete this movie?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/movies/${movieId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const data = await handleApiResponse(response);
+                const statusDiv = document.getElementById('uploadStatus');
+                statusDiv.textContent = 'Movie deleted successfully';
+                statusDiv.className = 'status-success';
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                    statusDiv.className = '';
+                }, 3000);
+                loadMovies(); // Refresh the list
+            } catch (error) {
+                console.error('Error deleting movie:', error);
+                const statusDiv = document.getElementById('uploadStatus');
+                statusDiv.textContent = `Failed to delete movie: ${error.message}`;
+                statusDiv.className = 'status-error';
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                    statusDiv.className = '';
+                }, 3000);
+            }
+        }
+
+        // Test API connection and load movies when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            const isConnected = await testApiConnection();
+            if (isConnected) {
+                await loadMovies();
+            } else {
+                const container = document.getElementById('moviesList');
+                container.innerHTML = `<div class="error-message">Cannot connect to API server. Please make sure the server is running.</div>`;
+            }
+        });
+    </script>
+</body>
+</html> 
